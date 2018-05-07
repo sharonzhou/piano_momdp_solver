@@ -1,3 +1,4 @@
+<!-- Still confused about vnameCurr vs vnamePrev in our context -->
 <?xml version='1.0' encoding='ISO-8859-1'?>
 <pomdpx version='0.1' id='tagxmlfac' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:noNamespaceSchemaLocation='pomdpx.xsd'>
 
@@ -9,35 +10,110 @@
 	#Total number of target states: 1
 </Description>
 
+<!-- instead of this, -1 reward whenever we're not in the goal state -->
 <Discount>0.95</Discount>
 
 <Variable>
-	<StateVar vnamePrev="A_0" vnameCurr="A" fullyObs="true">
+	<StateVar vnamePrev="AB_0" vnameCurr="AB" fullyObs="true">
 		<ValueEnum> 0 1
 		</ValueEnum>
 	</StateVar>
 
-	<StateVar vnamePrev="B_0" vnameCurr="B" fullyObs="true">
+	<StateVar vnamePrev="CD_0" vnameCurr="CD" fullyObs="true">
 		<ValueEnum> 0 1
 		</ValueEnum>
 	</StateVar>
 
-	<ObsVar vname="obs_sensor">
-		<ValueEnum> Orv4rh0 Orv4rh1 Orv4rh2 Orv4rh3 Orv4rh4 Orv4rh5 Orv4rh6 Orv4rh7 Orv4rh8 Orv4rh9 Orv3rh0 Orv3rh1 Orv3rh2 Orv3rh3 Orv3rh4 Orv3rh5 Orv3rh6 Orv3rh7 Orv3rh8 Orv3rh9 Orv2rh5 Orv2rh6 Orv2rh7 Orv1rh5 Orv1rh6 Orv1rh7 Orv0rh5 Orv0rh6 Orv0rh7 yes
+	<StateVar vnamePrev="EF_0" vnameCurr="EF" fullyObs="true">
+		<ValueEnum> 0 1
+		</ValueEnum>
+	</StateVar>
+
+	<StateVar vnamePrev="ABCD_0" vnameCurr="ABCD" fullyObs="true">
+		<ValueEnum> 0 1
+		</ValueEnum>
+	</StateVar>
+
+	<StateVar vnamePrev="EFAB_0" vnameCurr="EFAB" fullyObs="true">
+		<ValueEnum> 0 1
+		</ValueEnum>
+	</StateVar> 
+
+	<StateVar vnamePrev="CDEF_0" vnameCurr="CDEF" fullyObs="true">
+		<ValueEnum> 0 1
+		</ValueEnum>
+	</StateVar>
+
+	<StateVar vnamePrev="ABABCDCD_0" vnameCurr="ABABCDCD" fullyObs="true">
+		<ValueEnum> 0 1
+		</ValueEnum>
+	</StateVar>
+
+	<StateVar vnamePrev="EFEFABAB_0" vnameCurr="EFEFABAB" fullyObs="true">
+		<ValueEnum> 0 1
+		</ValueEnum>
+	</StateVar>
+
+	<StateVar vnamePrev="CDCDEFEF_0" vnameCurr="CDCDEFEF" fullyObs="true">
+		<ValueEnum> 0 1
+		</ValueEnum>
+	</StateVar>
+
+	<StateVar vnamePrev="ABABCDCDEFEFABAB_0" vnameCurr="ABABCDCDEFEFABAB" fullyObs="true">
+		<ValueEnum> 0 1
+		</ValueEnum>
+	</StateVar>
+
+	<StateVar vnamePrev="desired_autonomy_0" vnameCurr="desired_autonomy" fullyObs="false">
+		<ValueEnum> 0 1
+		</ValueEnum>
+	</StateVar>
+
+	<StateVar vnamePrev="desired_difficulty_0" vnameCurr="desired_difficulty" fullyObs="false">
+		<ValueEnum> 0 1
+		</ValueEnum>
+	</StateVar>
+
+	<ObsVar vname="performance">
+		<!-- TODO: discretize values -->
+		<!-- <NumValues>10</NumValues> -->
+		<ValueEnum> 0 1 
 		</ValueEnum>
 	</ObsVar>
 
-	<ActionVar vname="action_robot">
-		<ValueEnum> North South East West Catch
+	<ObsVar vname="duration">
+		<!-- TODO: discretize values -->
+		<!-- <NumValues>10</NumValues> -->
+		<ValueEnum> 0 1
+		</ValueEnum>
+	</ObsVar>
+
+	<ObsVar vname="exercised_autonomy">
+		<ValueEnum> 0 1
+		</ValueEnum>
+	</ObsVar>
+
+	<ObsVar vname="exercised_difficulty">
+		<ValueEnum> 0 1
+		</ValueEnum>
+	</ObsVar>
+
+	<ActionVar vname="given_autonomy">
+		<ValueEnum> 0 1
 		</ValueEnum>
 	</ActionVar>
 
-	<RewardVar vname="reward_robot"/>
+	<ActionVar vname="given_difficulty">
+		<ValueEnum> 0 1
+		</ValueEnum>
+	</ActionVar>
+
+	<RewardVar vname="reward"/>
 </Variable>
 
 <InitialStateBelief>
 	<CondProb>
-		<Var>robot_0</Var>
+		<Var>desired_autonomy</Var>
 			<Parent>null</Parent>
 			<Parameter type = "TBL">
 				<Entry>
@@ -48,7 +124,7 @@
 	</CondProb>
 
 	<CondProb>
-		<Var>target_0</Var>
+		<Var>desired_difficulty</Var>
 			<Parent>null</Parent>
 			<Parameter type = "TBL">
 				<Entry>
@@ -59,8 +135,10 @@
 	</CondProb>
 </InitialStateBelief>
 
-<StateTransitionFunction>	<CondProb>
-		<Var>robot_1</Var>		<Parent>action_robot robot_0 target_0</Parent>
+<StateTransitionFunction>	
+	<CondProb>
+		<Var>robot_1</Var>		
+		<Parent>action_robot robot_0 target_0</Parent>
 		<Parameter type = "TBL">
 
 			<Entry>
