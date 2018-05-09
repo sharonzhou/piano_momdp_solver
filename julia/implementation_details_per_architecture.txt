@@ -1,0 +1,43 @@
+WARNING: POMDPs.jl: Could not find or synthesize generate_sor(::MOMDP, ::Bool, ::Act, ::MersenneTwister). Either implement it directly, or, to automatically synthesize it, implement the following methods from the explicit interface:
+
+  [X] transition(::MOMDP, ::Bool, ::Act)
+  [X] observation(::MOMDP, ::Bool, ::Act, ::Bool)
+  [X] reward(::MOMDP, ::Bool, ::Act, ::Bool)
+
+    
+OR implement the following methods from the generative interface:
+
+  [X] generate_sr(::MOMDP, ::Bool, ::Act, ::AbstractRNG)
+  [X] generate_o(::MOMDP, ::Bool, ::Act, ::Bool, ::AbstractRNG)
+
+                     
+([✔] = already implemented correctly; [X] = missing)
+WARNING: POMDPs.jl: Could not find or synthesize generate_so(::MOMDP, ::Bool, ::Act, ::MersenneTwister). Either implement it directly, or, to automatically synthesize it, implement the following methods from the explicit interface:
+
+  [X] transition(::MOMDP, ::Bool, ::Act)
+  [X] observation(::MOMDP, ::Bool, ::Act, ::Bool)
+
+    
+OR implement the following methods from the generative interface:
+
+  [X] generate_s(::MOMDP, ::Bool, ::Act, ::AbstractRNG)
+  [X] generate_o(::MOMDP, ::Bool, ::Act, ::Bool, ::AbstractRNG)
+
+                     
+([✔] = already implemented correctly; [X] = missing)
+WARNING: POMDPs.jl: Could not find or synthesize generate_s(::MOMDP, ::Bool, ::Act, ::MersenneTwister). Either implement it directly, or, to automatically synthesize it, implement the following methods from the explicit interface:
+
+  [X] transition(::MOMDP, ::Bool, ::Act)
+
+    
+([✔] = already implemented correctly; [X] = missing)
+WARNING: POMDPs.jl: Could not find or synthesize generate_sr(::MOMDP, ::Bool, ::Act, ::MersenneTwister). Either implement it directly, or, to automatically synthesize it, implement the following methods from the explicit interface:
+
+  [X] transition(::MOMDP, ::Bool, ::Act)
+  [X] reward(::MOMDP, ::Bool, ::Act, ::Bool)
+
+    
+OR implement the following methods from the generative interface:
+
+  [X] generate_s(::MOMDP, ::Bool, ::Act, ::AbstractRNG)
+  [X] reward(::MOMDP, ::Bool, ::Act, ::Bool)

@@ -1,3 +1,6 @@
+importall POMDPs
+using POMDPToolbox
+
 struct TigerPOMDP <: POMDP{Bool, Symbol, Bool} # POMDP{State, Action, Observation} all parametarized by Int64s
     r_listen::Float64 # reward for listening (default -1)
     r_findtiger::Float64 # reward for finding the tiger (default -100)
@@ -97,8 +100,29 @@ POMDPs.n_observations(::TigerPOMDP) = 2;
 
 POMDPs.initial_state_distribution(pomdp::TigerPOMDP) = TigerDistribution(0.5, [true, false]);
 
+using QMDP
 
+# initialize the solver
+# key-word args are the maximum number of iterations the solver will run for, and the Bellman tolerance
+solver = QMDPSolver(max_iterations=50, tolerance=1e-3) 
 
+# run the solver
+qmdp_policy = solve(solver, pomdp, verbose=true)
+
+print(qmdp_policy)
+
+# pomdp = TigerPOMDP() # initialize problem
+# init_dist = initial_state_distribution(pomdp) # initialize distriubtion over state
+
+# up = updater(qmdp_policy) # belief updater for our policy
+# hist = HistoryRecorder(max_steps=14, rng=MersenneTwister(1)) # history recorder that keeps track of states, observations and beliefs
+
+# hist = simulate(hist, pomdp, qmdp_policy, up, init_dist)
+
+# for (s, b, a, r, sp, op) in hist
+#     println("s: $s, b: $(b.b), action: $a, obs: $op")
+# end
+# println("Total reward: $(discounted_reward(hist))")
 
 
 
