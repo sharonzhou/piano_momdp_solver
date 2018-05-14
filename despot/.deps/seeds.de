@@ -1,2 +1,0 @@
-seeds.o: src/util/seeds.cpp include/despot/util/seeds.h \
-  include/despot/util/random.h

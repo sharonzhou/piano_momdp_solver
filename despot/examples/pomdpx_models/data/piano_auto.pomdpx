@@ -1,5 +1,0 @@
-<?xml version='1.0' encoding='ISO-8859-1'?>
-<pomdpx id="tagxmlfac" version="0.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="pomdpx.xsd"><Description>written by Sharon Zhou sharonz@cs.stanford.edu
-
-#Total number of states in curriculum: 16
-#Total number of target states: 1</Description><Discount>0.95</Discount><Variable>0.95</Variable><InitialStateBelief>0.95</InitialStateBelief><StateTransitionFunction>0.95</StateTransitionFunction><ObsFunction>0.95</ObsFunction><RewardFunction>0.95</RewardFunction></pomdpx>

@@ -111,18 +111,18 @@ qmdp_policy = solve(solver, pomdp, verbose=true)
 
 print(qmdp_policy)
 
-# pomdp = TigerPOMDP() # initialize problem
-# init_dist = initial_state_distribution(pomdp) # initialize distriubtion over state
+pomdp = TigerPOMDP() # initialize problem
+init_dist = initial_state_distribution(pomdp) # initialize distriubtion over state
 
-# up = updater(qmdp_policy) # belief updater for our policy
-# hist = HistoryRecorder(max_steps=14, rng=MersenneTwister(1)) # history recorder that keeps track of states, observations and beliefs
+up = updater(qmdp_policy) # belief updater for our policy
+hist = HistoryRecorder(max_steps=14, rng=MersenneTwister(1)) # history recorder that keeps track of states, observations and beliefs
 
-# hist = simulate(hist, pomdp, qmdp_policy, up, init_dist)
+hist = simulate(hist, pomdp, qmdp_policy, up, init_dist)
 
-# for (s, b, a, r, sp, op) in hist
-#     println("s: $s, b: $(b.b), action: $a, obs: $op")
-# end
-# println("Total reward: $(discounted_reward(hist))")
+for (s, b, a, r, sp, op) in hist
+    println("s: $s, b: $(b.b), action: $a, obs: $op")
+end
+println("Total reward: $(discounted_reward(hist))")
 
 
 

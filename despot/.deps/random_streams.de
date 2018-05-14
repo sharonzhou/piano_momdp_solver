@@ -1,2 +1,0 @@
-random_streams.o: src/random_streams.cpp include/despot/random_streams.h \
-  include/despot/util/random.h include/despot/util/seeds.h
