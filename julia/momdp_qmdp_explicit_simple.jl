@@ -4,47 +4,36 @@ using QMDP
 using ParticleFilters
 using BasicPOMCP
 
-# state: State=struct, action: Act=struct, obs: Obs=struct
 struct State
-    # knowledge::[Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool] # Bit array repr. each node in graph
-
     # Latent variables
     desired_autonomy::Bool
-    # desired_difficulty::Bool
 
     # Observable variables
-    performance::Bool #TODO: Float64 or Int64
-    # exercised_autonomoy::Bool
-    # exercised_difficulty::Bool
+    performance::Bool
     given_autonomy::Bool
-    # given_difficulty::Bool
 
     # last engagement, to be used for reward
-    engagement::Bool #TODO: Float64 or Int64
+    engagement::Bool
 end
 
-struct Act 
-    give_autonomy::Bool
-    # give_difficulty::Bool
-end
+# struct Act 
+#     give_autonomy::Bool
+# end
 
 struct Obs
+    performance::Bool
+    given_autonomy::Bool
+
     # Using duration (1 = engaged/'just right', 0 = too long / too short on task) 
     #   as a proxy for engagement
-    engagement::Bool #TODO: Float64 or Int64
+    duration::Bool
 
-    performance::Bool #TODO: Float64 or Int64
-    # exercised_autonomoy::Bool
-    # exercised_difficulty::Bool
-    given_autonomy::Bool
-    # given_difficulty::Bool 
 end
 
 # Connect observation space to state space for observable variables
-# Obs(s::State, engagement::Bool) = Obs(engagement, s.performance, s.given_autonomy)
-Obs(s::State) = Obs(s.engagement, s.performance, s.given_autonomy)
+Obs(s::State) = Obs(s.performance, s.given_autonomy, s.engagement)
 
-struct MOMDP <: POMDP{State, Act, Obs} #TODO mutable struct - ideally make p_ability change over time
+struct MOMDP <: POMDP{State, Symbol, Obs} #TODO mutable struct - ideally make p_ability change over time
     # CPT: P(u' | u, p, gu)
     p_autonomy_when_desired_good_given::Float64
     p_autonomy_when_desired_good_not_given::Float64
@@ -61,7 +50,7 @@ struct MOMDP <: POMDP{State, Act, Obs} #TODO mutable struct - ideally make p_abi
     p_engaged_when_not_desired_given::Float64
     p_engaged_when_not_desired_not_given::Float64
 
-    # For now, ability is a stochastic constant for a student 
+    # For now, ability is a probabilistic constant for a student 
     #   that determines performance independent of attempt
     p_ability::Float64
 
@@ -73,9 +62,9 @@ struct MOMDP <: POMDP{State, Act, Obs} #TODO mutable struct - ideally make p_abi
 end
 
 # Transition values from CPTs for default constructor
-MOMDP() = MOMDP(0.99, 0.9, 0.3, 0.8, 0.8, 0.1, 0.01, 0.2,
-                0.99, 0.3, 0.2, 0.9,
-                0.99, # TODO: draw from distribution (first pass: tune manually to see diffs)
+MOMDP() = MOMDP(0.9, 0.9, 0.3, 0.8, 0.8, 0.1, 0.01, 0.2,
+                0.9, 0.3, 0.2, 0.9,
+                0.01, # TODO: draw from distribution (first pass: tune manually to see diffs)
                 1.0,
                 0.95
                 )
@@ -105,20 +94,22 @@ end
 state_index(m::MOMDP, s::State) = state_index(s)
 
 # Actions of MOMDP
-const all_actions = [Act(give_autonomy) for give_autonomy = 0:1]
-actions(m::MOMDP) = all_actions
+# const all_actions = [Act(give_autonomy) for give_autonomy = 0:1]
+# actions(m::MOMDP) = all_actions
 
-function action_index(m::MOMDP, a::Act)
+actions(m::MOMDP) = [:give_autonomy, :revoke_autonomy]
+
+function action_index(m::MOMDP, a::Symbol)
     # TODO: use sub2ind for efficiency
-    if a.give_autonomy == 0
-        # NB: Arrays in Julia are indexed at 1, not 0
+    if a == :give_autonomy
         return 1
-    else
+    elseif a == :revoke_autonomy
         return 2
     end
+    error("invalid MOMDP action: $a")
 end
 
-const all_observations = [Obs(engagement, performance, given_autonomy) for engagement = 0:1, performance = 0:1, given_autonomy = 0:1]
+const all_observations = [Obs(performance, given_autonomy, duration) for performance = 0:1, given_autonomy = 0:1, duration = 0:1]
 observations(m::MOMDP) = all_observations
 
 # Observation is certain
@@ -127,99 +118,107 @@ function observation(m::MOMDP, s::State)
 end
 
 # Transition function P(s' | s, a)
-function transition(m::MOMDP, s::State, a::Act)
-    rng = MersenneTwister(1)
+function transition(m::MOMDP, s::State, a::Symbol)
+    sp_desired_autonomy = true
+    sp_engagement = true
+    sp_performance = true
+
     # Next latent state of desired autonomy P(u' | u, p, gu)
     # If user wants autonomy
     if s.desired_autonomy
         # Does well
         if s.performance
             # And we give them autonomy
-            if a.give_autonomy
+            if a == :give_autonomy
                 # Then the prob for next desired_autonomy, and the given autonomy, updated in the state
-                sp_desired_autonomy = rand(rng) < m.p_autonomy_when_desired_good_given ? true : false
+                p_sp_desired_autonomy = m.p_autonomy_when_desired_good_given
                 sp_given_autonomy = true
             else
-                sp_desired_autonomy = rand(rng) < m.p_autonomy_when_desired_good_not_given ? true : false
+                p_sp_desired_autonomy = m.p_autonomy_when_desired_good_not_given
                 sp_given_autonomy = false
             end
         else
-            if a.give_autonomy
-                sp_desired_autonomy = rand(rng) < m.p_autonomy_when_desired_bad_given ? true : false
+            if a == :give_autonomy
+                p_sp_desired_autonomy = m.p_autonomy_when_desired_bad_given
                 sp_given_autonomy = true
             else
-                sp_desired_autonomy = rand(rng) < m.p_autonomy_when_desired_bad_given ? true : false
+                p_sp_desired_autonomy = m.p_autonomy_when_desired_bad_not_given
                 sp_given_autonomy = false
             end
         end
     else
         if s.performance
-            if a.give_autonomy
-                sp_desired_autonomy = rand(rng) < m.p_autonomy_when_not_desired_good_given ? true : false
+            if a == :give_autonomy
+                p_sp_desired_autonomy = m.p_autonomy_when_not_desired_good_given
                 sp_given_autonomy = true
             else
-                sp_desired_autonomy = rand(rng) < m.p_autonomy_when_not_desired_good_not_given ? true : false
+                p_sp_desired_autonomy = m.p_autonomy_when_not_desired_good_not_given
                 sp_given_autonomy = false
             end
         else
-            if a.give_autonomy
-                sp_desired_autonomy = rand(rng) < m.p_autonomy_when_not_desired_bad_given ? true : false
+            if a == :give_autonomy
+                p_sp_desired_autonomy = m.p_autonomy_when_not_desired_bad_given
                 sp_given_autonomy = true
             else
-                sp_desired_autonomy = rand(rng) < m.p_autonomy_when_not_desired_bad_given ? true : false
+                p_sp_desired_autonomy = m.p_autonomy_when_not_desired_bad_not_given
                 sp_given_autonomy = false
             end
         end
     end
 
     # Next engagement level P(i' | u', gu)
-    # If the user wants autonomy in this next state
-    if sp_desired_autonomy
-        # And was given autonomy in this next state
-        if sp_given_autonomy
-            sp_engagement = rand(rng) < m.p_engaged_when_desired_given ? true : false
-            not_sp_engagement = rand(rng) < m.p_engaged_when_not_desired_given ? true : false
-        else
-            sp_engagement = rand(rng) < m.p_engaged_when_desired_not_given ? true : false
-            not_sp_engagement = rand(rng) < m.p_engaged_when_not_desired_not_given ? true : false
-        end
+    if sp_given_autonomy
+        p_sp_engagement_desired = m.p_engaged_when_desired_given
+        p_sp_engagement_not_desired = m.p_engaged_when_not_desired_given
     else
-        if sp_given_autonomy
-            sp_engagement = rand(rng) < m.p_engaged_when_not_desired_given ? true : false
-            not_sp_engagement = rand(rng) < m.p_engaged_when_desired_given ? true : false
-        else
-            sp_engagement = rand(rng) < m.p_engaged_when_not_desired_not_given ? true : false
-            not_sp_engagement = rand(rng) < m.p_engaged_when_desired_not_given ? true : false
-        end
+        p_sp_engagement_desired = m.p_engaged_when_desired_not_given
+        p_sp_engagement_not_desired = m.p_engaged_when_not_desired_not_given
     end
 
     # Let's say performance is a general ability that's constant throughout the curriculum for now
-    sp_performance = rand(rng) < m.p_ability ? true : false
+    p_sp_performance = m.p_ability
 
-    sp = State(sp_desired_autonomy, sp_performance, sp_given_autonomy, sp_engagement)
-    not_sp = State(!sp.desired_autonomy, sp_performance, sp_given_autonomy, not_sp_engagement)
+    sps = State[]
+    probs = Float64[]
+    push!(sps, State(sp_desired_autonomy, sp_performance, sp_given_autonomy, sp_engagement))
+    push!(probs, p_sp_desired_autonomy * p_sp_engagement_desired * p_sp_performance)
+    push!(sps, State(!sp_desired_autonomy, sp_performance, sp_given_autonomy, sp_engagement))
+    push!(probs, (1.0 - p_sp_desired_autonomy) * p_sp_engagement_not_desired * p_sp_performance)
+    push!(sps, State(sp_desired_autonomy, sp_performance, sp_given_autonomy, !sp_engagement))
+    push!(probs, p_sp_desired_autonomy * (1.0 - p_sp_engagement_desired) * p_sp_performance)
+    push!(sps, State(!sp_desired_autonomy, sp_performance, sp_given_autonomy, !sp_engagement))
+    push!(probs, (1.0 - p_sp_desired_autonomy) * (1.0 - p_sp_engagement_not_desired) * p_sp_performance)
+
+    push!(sps, State(sp_desired_autonomy, !sp_performance, sp_given_autonomy, sp_engagement))
+    push!(probs, p_sp_desired_autonomy * p_sp_engagement_desired * (1.0 - p_sp_performance))
+    push!(sps, State(!sp_desired_autonomy, !sp_performance, sp_given_autonomy, sp_engagement))
+    push!(probs, (1.0 - p_sp_desired_autonomy) * p_sp_engagement_not_desired * (1.0 - p_sp_performance))
+    push!(sps, State(sp_desired_autonomy, !sp_performance, sp_given_autonomy, !sp_engagement))
+    push!(probs, p_sp_desired_autonomy * (1.0 - p_sp_engagement_desired) * (1.0 - p_sp_performance))
+    push!(sps, State(!sp_desired_autonomy, !sp_performance, sp_given_autonomy, !sp_engagement))
+    push!(probs, (1.0 - p_sp_desired_autonomy) * (1.0 - p_sp_engagement_not_desired) * (1.0 - p_sp_performance))
     
-    # Probability of correct latent determination of state - for now, just fixing this to 1.0 since using probs above already to decide
-    p = 1.0  #TODO: make not 1.0 so that not_sp has value here, else can now just do SparseCat([sp], [p])
-    return SparseCat([sp, not_sp], [p, 1.0-p])
+    # print("\n######\n")
+    # print(s, " desired_autonomy, performance, given_autonomy, engagement\n", a, "\n")
+    # print(sps, "\n")
+    # print(probs, "\n")
+    # print("\n######\n")
+    return SparseCat(sps, probs)
 end
 
 # Rewarded for being engaged
-function POMDPs.reward(m::MOMDP, s::State, a::Act)
+function POMDPs.reward(m::MOMDP, s::State, a::Symbol)
     return s.engagement ? m.r_engagement : 0.0 #TODO: try -1.0 here
 end
 
-# initial_state_distribution(m::MOMDP) = [[true, false], false, false]
-initial_state_distribution(m::MOMDP) = SparseCat(states(m), ones(length(states(m))) / length(states(m)))
+initial_state_distribution(m::MOMDP) = SparseCat(states(m), ones(num_states) / num_states)
+# initial_state_distribution(m::MOMDP) = SparseCat([State(false, true, false, true)], [1.0])
 
 # Solver
 
 momdp = MOMDP()
 
 # QMDP 
-# printed (10 max_iter): QMDP.QMDPPolicy{MOMDP,Act}([0.0 0.0; 18.375 18.875; 0.0 0.0; 19.375 18.875; 0.0 0.0; 18.375 18.875; 0.0 0.0; 19.375 18.875; 0.0 0.0; 19.375 19.875; 0.0 0.0; 20.375 19.875; 0.0 0.0; 19.375 19.875; 0.0 0.0; 20.375 19.875], Act[Act(false), Act(true)], MOMDP(0.99, 0.9, 0.3, 0.8, 0.8, 0.1, 0.01, 0.2, 0.9, 0.7, 0.2, 0.8, 0.5, 1.0, 1.0))
-# printed (100 max_iter): QMDP.QMDPPolicy{MOMDP,Act}([0.0 0.0; 198.375 198.875; 0.0 0.0; 199.375 198.875; 0.0 0.0; 198.375 198.875; 0.0 0.0; 199.375 198.875; 0.0 0.0; 199.375 199.875; 0.0 0.0; 200.375 199.875; 0.0 0.0; 199.375 199.875; 0.0 0.0; 200.375 199.875], Act[Act(false), Act(true)], MOMDP(0.99, 0.9, 0.3, 0.8, 0.8, 0.1, 0.01, 0.2, 0.9, 0.7, 0.2, 0.8, 0.5, 1.0, 1.0))
-
 solver = QMDPSolver(max_iterations=100, tolerance=1e-3) 
 policy = solve(solver, momdp, verbose=true)
 print(policy)
@@ -231,20 +230,37 @@ init_dist = initial_state_distribution(momdp)
 hist = HistoryRecorder(max_steps=20, rng=MersenneTwister(1), show_progress=true)
 hist = simulate(hist, momdp, policy, filter, init_dist)
 
+children = Array[]
 for (s, b, a, r, sp, op) in hist
-    println("s: $s, action: $a, obs: $op")
+    println("s(desired_autonomy, performance, given_autonomy, engagement): $s, action: $a, obs(performance, given_autonomy, duration): $op")
+    # push!(children, a, op)
+    # println(QMDP.value(policy, b))
+    # println(QMDP.action(policy, b))
+    # println(QMDP.belief_vector(policy, b))
+    # println(QMDP.unnormalized_util(policy, b))
+    # println(policy.action_map)
     # println("s: $s, b: $(b.b), action: $a, obs: $op")
 end
 println("Total reward: $(discounted_reward(hist))")
 
+# print(children)
+# print(typeof(children))
+# tree = D3Trees(children)
+# print(tree)
+
 for s in states(momdp)
     # @show s
-    # @show action(policy, ParticleCollection([s]))
+    @show action(policy, ParticleCollection([s]))
     @printf("State(desired_autonomy=%s, performance=%s, given_autonomy=%s, engagement=%s) = Action(give_autonomy=%s)\n", s.desired_autonomy, s.performance, s.given_autonomy, s.engagement, action(policy, ParticleCollection([s])))
 end
 
 println(QMDP.alphas(policy))
+# for (action_true, action_false) in policy.alphas
+#     println("$action_true")
+# end
+# using D3Trees
 
+# D3Tree(policy, State(true, true, true, true), init_expand=2)
 
 # POMCPSolver
 
