@@ -198,6 +198,7 @@ function transition(m::MOMDP, s::State, a::Symbol)
     push!(sps, State(!sp_desired_autonomy, !sp_performance, sp_given_autonomy, !sp_engagement))
     push!(probs, (1.0 - p_sp_desired_autonomy) * (1.0 - p_sp_engagement_not_desired) * (1.0 - p_sp_performance))
     
+    # Debugging
     # print("\n######\n")
     # print(s, " desired_autonomy, performance, given_autonomy, engagement\n", a, "\n")
     # print(sps, "\n")
@@ -211,8 +212,9 @@ function POMDPs.reward(m::MOMDP, s::State, a::Symbol)
     return s.engagement ? m.r_engagement : 0.0 #TODO: try -1.0 here
 end
 
-initial_state_distribution(m::MOMDP) = SparseCat(states(m), ones(num_states) / num_states)
-# initial_state_distribution(m::MOMDP) = SparseCat([State(false, true, false, true)], [1.0])
+# initial_state_distribution(m::MOMDP) = SparseCat(states(m), ones(num_states) / num_states)
+p_initially_motivated = 0.5
+initial_state_distribution(m::MOMDP) = SparseCat([State(true, false, false, false), State(false, false, false, false)], [p_initially_motivated, 1.0-p_initially_motivated])
 
 # Solver
 
@@ -230,18 +232,21 @@ init_dist = initial_state_distribution(momdp)
 hist = HistoryRecorder(max_steps=20, rng=MersenneTwister(1), show_progress=true)
 hist = simulate(hist, momdp, policy, filter, init_dist)
 
-children = Array[]
+children = []
 for (s, b, a, r, sp, op) in hist
+    print("####\n")
     println("s(desired_autonomy, performance, given_autonomy, engagement): $s, action: $a, obs(performance, given_autonomy, duration): $op")
-    # push!(children, a, op)
+    # push!(children, op)
+
     # println(QMDP.value(policy, b))
     # println(QMDP.action(policy, b))
-    # println(QMDP.belief_vector(policy, b))
+    println(QMDP.belief_vector(policy, b))
     # println(QMDP.unnormalized_util(policy, b))
     # println(policy.action_map)
     # println("s: $s, b: $(b.b), action: $a, obs: $op")
 end
 println("Total reward: $(discounted_reward(hist))")
+print(states(momdp))
 
 # print(children)
 # print(typeof(children))
