@@ -288,7 +288,7 @@ for (s, b, a, r, o, sp, bp) in eachstep(hist, "(s, b, a, r, o, sp, bp)")
     println("r: $r")
     println("o(perf, given, dur): $o") # Find this node - do some math around it; update the n_step
     # 4^(n_tier-1) + (prev_o_val-1)*4 + o_val where good eng = 1, good dis = 2, bad eng = 3, bad dis = 4 
-    # 4^(n_tier-1) gets past the other tiers prior
+    # 4^(n_tier-1) gets past the other tiers prior 10+16+4*16+2
     # (prev_o_val-1)*4 gets past the others prior obs in the current tier
     # + o_val gets past the other obs of this parent node
     println("sp: $sp")
