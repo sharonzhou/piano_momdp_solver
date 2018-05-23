@@ -64,7 +64,7 @@ end
 # Transition values from CPTs for default constructor
 MOMDP() = MOMDP(0.9, 0.9, 0.3, 0.8, 0.8, 0.1, 0.01, 0.2,
                 0.9, 0.3, 0.2, 0.9,
-                0.01, # TODO: draw from distribution (first pass: tune manually to see diffs)
+                0.5, # TODO: draw from distribution (first pass: tune manually to see diffs)
                 1.0,
                 0.95
                 )
@@ -79,7 +79,7 @@ n_actions(::MOMDP) = num_actions
 n_observations(::MOMDP) = num_observations
 
 # States of MOMDP
-const all_states = [State(desired_autonomy, performance, given_autonomy, engagement) for desired_autonomy = 0:1, performance = 0:1, given_autonomy = 0:1, engagement = 0:1]
+const all_states = [State(desired_autonomy, performance, given_autonomy, engagement) for engagement = 0:1, performance = 0:1, given_autonomy = 0:1, desired_autonomy = 0:1]
 states(m::MOMDP) = all_states
 
 """ Explicitly, the indices are (+1 on all these bc arrays in Julia are indexed at 1):
@@ -119,9 +119,11 @@ end
 
 # Transition function P(s' | s, a)
 function transition(m::MOMDP, s::State, a::Symbol)
+    rng = MersenneTwister(1)
+
     sp_desired_autonomy = true
     sp_engagement = true
-    sp_performance = true
+    sp_performance = rand(rng) < m.p_ability ? true : false
 
     # Next latent state of desired autonomy P(u' | u, p, gu)
     # If user wants autonomy
@@ -213,7 +215,7 @@ function POMDPs.reward(m::MOMDP, s::State, a::Symbol)
 end
 
 # initial_state_distribution(m::MOMDP) = SparseCat(states(m), ones(num_states) / num_states)
-p_initially_motivated = 0.5
+p_initially_motivated = 0.5 # 0.5 is uniform prior
 initial_state_distribution(m::MOMDP) = SparseCat([State(true, false, false, false), State(false, false, false, false)], [p_initially_motivated, 1.0-p_initially_motivated])
 
 # Solver
@@ -223,43 +225,205 @@ momdp = MOMDP()
 # QMDP 
 solver = QMDPSolver(max_iterations=100, tolerance=1e-3) 
 policy = solve(solver, momdp, verbose=true)
-print(policy)
+# print(policy)
 
 filter = SIRParticleFilter(momdp, 10000)
 
 init_dist = initial_state_distribution(momdp)
 
-hist = HistoryRecorder(max_steps=20, rng=MersenneTwister(1), show_progress=true)
-hist = simulate(hist, momdp, policy, filter, init_dist)
 
-children = []
-for (s, b, a, r, sp, op) in hist
-    print("####\n")
-    println("s(desired_autonomy, performance, given_autonomy, engagement): $s, action: $a, obs(performance, given_autonomy, duration): $op")
-    # push!(children, op)
+# Visualize D3tree setup
+text = ["revoke"]
+tree = [[2,3,4,5]]
+node_idx = 6
+for node in tree
+    # depth d requires # nodes = 2*4^0+4^1+4^2+4^3+...4^d (mult by 2 b/c it's num expansion nodes + num extra action nodes)
+    if node_idx < 10410 
+        if size(node, 1) == 1
+            # add a 4 child next
+            push!(tree, [node_idx, node_idx+1, node_idx+2, node_idx+3])
+            # increment node_idx by 4
+            node_idx += 4
 
-    # println(QMDP.value(policy, b))
-    # println(QMDP.action(policy, b))
-    println(QMDP.belief_vector(policy, b))
-    # println(QMDP.unnormalized_util(policy, b))
-    # println(policy.action_map)
-    # println("s: $s, b: $(b.b), action: $a, obs: $op")
+            # add text
+            push!(text, "action")
+        elseif size(node, 1) == 4
+            # add a 1 child next
+            push!(tree, [node_idx])
+            push!(tree, [node_idx+1])
+            push!(tree, [node_idx+2])
+            push!(tree, [node_idx+3])
+            # increment node_idx by 1
+            node_idx += 4
+
+            # add text
+            push!(text, "good eng")
+            push!(text, "good dis")
+            push!(text, "bad eng")
+            push!(text, "bad dis")
+        elseif size(node, 1) < 1
+            # terminate this process when reached leaf nodes
+            print("terminate", size(tree))
+            break
+        end
+    end
 end
-println("Total reward: $(discounted_reward(hist))")
-print(states(momdp))
+print(size(tree))
+print(size(text))
 
-# print(children)
-# print(typeof(children))
-# tree = D3Trees(children)
-# print(tree)
 
+
+# Individual simulation
+seed = 5
+hist = HistoryRecorder(max_steps=4, rng=MersenneTwister(seed), show_progress=true)
+hist = simulate(hist, momdp, policy, filter, init_dist)
+n_tier = 0
+n_step = 1
+for (s, b, a, r, o, sp, bp) in eachstep(hist, "(s, b, a, r, o, sp, bp)")
+    print("####\n")
+    println(QMDP.belief_vector(policy, b))
+    println("s(desire, perf, given, eng): $s")
+    println("a: $a") # If a is already in there, don't update, else update "action" to be the desired action
+    # n_step += 1 for the action? if so then n_step init is n_step = 0
+    println("r: $r")
+    println("o(perf, given, dur): $o") # Find this node - do some math around it; update the n_step
+    # 4^(n_tier-1) + (prev_o_val-1)*4 + o_val where good eng = 1, good dis = 2, bad eng = 3, bad dis = 4 
+    # 4^(n_tier-1) gets past the other tiers prior
+    # (prev_o_val-1)*4 gets past the others prior obs in the current tier
+    # + o_val gets past the other obs of this parent node
+    println("sp: $sp")
+    println(QMDP.belief_vector(policy, bp)) # If belief text is already there ([] in string), update the o node with this belief
+end
 for s in states(momdp)
     # @show s
     @show action(policy, ParticleCollection([s]))
     @printf("State(desired_autonomy=%s, performance=%s, given_autonomy=%s, engagement=%s) = Action(give_autonomy=%s)\n", s.desired_autonomy, s.performance, s.given_autonomy, s.engagement, action(policy, ParticleCollection([s])))
 end
 
-println(QMDP.alphas(policy))
+
+
+# Modified inchrome() to work on Mac
+function chrome_display(t::D3Tree)
+    fname = joinpath(mktempdir(), "tree.html")
+    open(fname, "w") do f
+        show(f, MIME("text/html"), t)
+    end
+    run(`open -a "Google Chrome" $fname`)
+end
+
+using D3Trees
+dtree = D3Tree(tree, text=text, init_expand=2)
+chrome_display(dtree)
+
+# hist_tree = Dict()
+# for seed = 1:5
+#     println(seed)
+#     hist = HistoryRecorder(max_steps=4, rng=MersenneTwister(seed), show_progress=true)
+#     hist = simulate(hist, momdp, policy, filter, init_dist)
+
+#     hist_ao = String[]
+#     hist_b = Array[]
+#     i = 1
+#     for (s, b, a, r, o, sp, bp) in eachstep(hist, "(s, b, a, r, o, sp, bp)")
+#         if a == :give_autonomy
+#             push!(hist_ao, "give")
+#             action = "give"
+#         else
+#             push!(hist_ao, "revoke")
+#             action = "revoke"
+#         end
+
+#         if o.performance
+#             if o.duration
+#                 push!(hist_ao, "good eng")
+#                 obs = "good eng"
+#             else
+#                 push!(hist_ao, "good dis")
+#                 obs = "good dis"
+#             end
+#         else
+#              if o.duration
+#                 push!(hist_ao, "bad eng")
+#                 obs = "bad eng"
+#             else
+#                 push!(hist_ao, "bad dis")
+#                 obs = "bad dis"
+#             end
+#         end
+
+#         belief = QMDP.belief_vector(policy, b)
+        
+#         if haskey(hist_tree, i)
+#             if haskey(hist_tree[i], action)
+#                 if haskey(hist_tree[i][action], obs)
+#                     # pass; already recorded
+#                 else
+#                     hist_tree[i][action][obs] = belief
+#                 end
+#             else
+#                 hist_tree[i][action] = Dict()
+#                 hist_tree[i][action][obs] = belief
+#             end
+#         else
+#             hist_tree[i] = Dict()
+#             hist_tree[i][action] = Dict()
+#             hist_tree[i][action][obs] = belief
+#         end
+        
+#         push!(hist_b, QMDP.belief_vector(policy, b))
+
+#         i += 1
+#     end
+#     # println("here")
+#     # println(hist_ao)
+#     # println(hist_b)
+#     # If not previously explored
+#     # if hist_ao in hists_aos
+#         # continue
+#     # else
+#     push!(hists_aos, hist_ao)
+
+#     hist_dict = Dict("ao" => hist_ao, "belief" => hist_b)
+#     push!(hists, hist_dict)
+#     # end
+# end
+# println(hists_aos)
+# println(hists)
+
+
+
+
+# println(QMDP.alphas(policy))
+
+
+
+# hist = sim(momdp, max_steps=4) do obs
+#     println("Observation was $obs.")
+#     return 1
+# end
+
+# children = []
+# for (s, b, a, r, sp, op) in hist
+#     print("####\n")
+#     println("s(desired_autonomy, performance, given_autonomy, engagement): $s, action: $a, obs(performance, given_autonomy, duration): $op")
+#     # push!(children, op)
+
+#     # println(QMDP.value(policy, b))
+#     # println(QMDP.action(policy, b))
+#     println(QMDP.belief_vector(policy, b))
+#     # println(QMDP.unnormalized_util(policy, b))
+#     # println(policy.action_map)
+#     # println("s: $s, b: $(b.b), action: $a, obs: $op")
+# end
+# println("Total reward: $(discounted_reward(hist))")
+# print(states(momdp))
+
+# print(children)
+# print(typeof(children))
+# tree = D3Trees(children)
+# print(tree)
+
+
 # for (action_true, action_false) in policy.alphas
 #     println("$action_true")
 # end
