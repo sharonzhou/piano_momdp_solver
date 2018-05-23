@@ -237,8 +237,8 @@ text = ["revoke"]
 tree = [[2,3,4,5]]
 node_idx = 6
 for node in tree
-    # depth d requires # nodes = 2*4^0+4^1+4^2+4^3+...4^d (mult by 2 b/c it's num expansion nodes + num extra action nodes)
-    if node_idx < 10410 
+    # depth d requires # nodes = 2*(4^0+4^1+4^2+4^3+...4^d) (mult by 2 b/c it's num expansion nodes + num extra action nodes)
+    if node_idx < 3.0744573e+18 # d=30 is 3.0744573e+18 
         if size(node, 1) == 1
             # add a 4 child next
             push!(tree, [node_idx, node_idx+1, node_idx+2, node_idx+3])
@@ -268,39 +268,52 @@ for node in tree
         end
     end
 end
-print(size(tree))
-print(size(text))
 
+for seed = 1:1000
+    hist = HistoryRecorder(max_steps=30, rng=MersenneTwister(seed), show_progress=true)
+    hist = simulate(hist, momdp, policy, filter, init_dist)
+    tree_node_idx = 1
+    for (a, o, bp) in eachstep(hist, "(a, o, bp)")
+        # If a is already in there, don't update, else update "action" to be the desired action
+        if text[tree_node_idx] == "action"
+            a = replace(string(a), "_autonomy", "")
+            text[tree_node_idx] = a
+        end
 
+        if o.performance
+            if o.duration
+                obs = "good eng"
+                obs_val = 1
+            else
+                obs = "good dis"
+                obs_val = 2
+            end
+        else
+            if o.duration
+                obs = "bad eng"
+                obs_val = 3
+            else
+                obs = "bad dis"
+                obs_val = 4
+            end
+        end
 
-# Individual simulation
-seed = 5
-hist = HistoryRecorder(max_steps=4, rng=MersenneTwister(seed), show_progress=true)
-hist = simulate(hist, momdp, policy, filter, init_dist)
-n_tier = 0
-n_step = 1
-for (s, b, a, r, o, sp, bp) in eachstep(hist, "(s, b, a, r, o, sp, bp)")
-    print("####\n")
-    println(QMDP.belief_vector(policy, b))
-    println("s(desire, perf, given, eng): $s")
-    println("a: $a") # If a is already in there, don't update, else update "action" to be the desired action
-    # n_step += 1 for the action? if so then n_step init is n_step = 0
-    println("r: $r")
-    println("o(perf, given, dur): $o") # Find this node - do some math around it; update the n_step
-    # 4^(n_tier-1) + (prev_o_val-1)*4 + o_val where good eng = 1, good dis = 2, bad eng = 3, bad dis = 4 
-    # 4^(n_tier-1) gets past the other tiers prior 10+16+4*16+2
-    # (prev_o_val-1)*4 gets past the others prior obs in the current tier
-    # + o_val gets past the other obs of this parent node
-    println("sp: $sp")
-    println(QMDP.belief_vector(policy, bp)) # If belief text is already there ([] in string), update the o node with this belief
+        # Update index for observation node
+        tree_node_idx = tree[tree_node_idx][obs_val]
+
+        # If belief text is already there ([] in string), don't update, else update the o node with this belief
+        belief = QMDP.belief_vector(policy, bp)
+        belief = convert(Array, belief)
+        filter!(e->e!=0.0, belief)
+        if contains(text[tree_node_idx], "[")
+            # do nothing
+        else
+            text[tree_node_idx] = obs * "\n" * string(belief)
+        end
+        # Update index for next action node
+        tree_node_idx = tree[tree_node_idx][1]
+    end
 end
-for s in states(momdp)
-    # @show s
-    @show action(policy, ParticleCollection([s]))
-    @printf("State(desired_autonomy=%s, performance=%s, given_autonomy=%s, engagement=%s) = Action(give_autonomy=%s)\n", s.desired_autonomy, s.performance, s.given_autonomy, s.engagement, action(policy, ParticleCollection([s])))
-end
-
-
 
 # Modified inchrome() to work on Mac
 function chrome_display(t::D3Tree)
@@ -392,6 +405,25 @@ chrome_display(dtree)
 
 
 
+# Individual simulation
+# seed = 5
+# hist = HistoryRecorder(max_steps=4, rng=MersenneTwister(seed), show_progress=true)
+# hist = simulate(hist, momdp, policy, filter, init_dist)
+# for (s, b, a, r, o, sp, bp) in eachstep(hist, "(s, b, a, r, o, sp, bp)")
+#     print("####\n")
+#     println(QMDP.belief_vector(policy, b))
+#     println("s(desire, perf, given, eng): $s")
+#     println("a: $a") 
+#     println("r: $r")
+#     println("o(perf, given, dur): $o") 
+#     println("sp: $sp")
+#     println(QMDP.belief_vector(policy, bp)) 
+# end
+# for s in states(momdp)
+#     # @show s
+#     @show action(policy, ParticleCollection([s]))
+#     @printf("State(desired_autonomy=%s, performance=%s, given_autonomy=%s, engagement=%s) = Action(give_autonomy=%s)\n", s.desired_autonomy, s.performance, s.given_autonomy, s.engagement, action(policy, ParticleCollection([s])))
+# end
 
 # println(QMDP.alphas(policy))
 
