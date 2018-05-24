@@ -216,8 +216,7 @@ end
 
 # initial_state_distribution(m::MOMDP) = SparseCat(states(m), ones(num_states) / num_states)
 p_initially_motivated = 0.5 # 0.5 is uniform prior
-init_state_dist = SparseCat([State(true, false, false, false), State(false, false, false, false)], [p_initially_motivated, 1.0-p_initially_motivated])
-initial_state_distribution(m::MOMDP) = init_state_dist
+initial_state_distribution(m::MOMDP) = SparseCat([State(true, false, false, false), State(false, false, false, false)], [p_initially_motivated, 1.0-p_initially_motivated])
 
 # Solver
 
@@ -231,46 +230,6 @@ policy = solve(solver, momdp, verbose=true)
 filter = SIRParticleFilter(momdp, 10000)
 
 init_dist = initial_state_distribution(momdp)
-
-# println(policy.alphas)
-#[13.9499 14.4372; 14.9499 15.4372; 13.9499 14.4376; 14.9503 15.4376; 14.2392 14.5245; 15.2392 15.5245; 14.2392 14.5249; 15.2393 15.5249; 14.0567 13.9162; 15.0567 14.9164; 14.0567 13.9165; 15.0567 14.9165; 14.2762 13.8296; 15.2762 14.8299; 14.2762 13.83; 15.2762 14.83]
-
-all_actions = [:give_autonomy, :revoke_autonomy]
-
-state_indices = findin(all_states, init_state_dist.vals)
-
-_, next_action_index_1 = findmax(policy.alphas[state_indices[1], :])
-next_belief_1 = transition(momdp, all_states[state_indices[1]], all_actions[next_action_index_1])
-println(next_belief_1)
-
-_, next_action_index_2 = findmax(policy.alphas[state_indices[2], :])
-next_belief_2 = transition(momdp, all_states[state_indices[2]], all_actions[next_action_index_2])
-println(next_belief_2)
-# struct Trajectory
-#     # Last belief
-#     belief::Array{Float64}
-
-#     alphas::Array{Float64}
-# end
-
-# Trajectory() = Trajectory(init_state_dist, policy.alphas)
-
-# function generate_a(o::Obs, prev_traj::Trajectory)
-#     # take new observation and update belief 
-#     filtered_prev_belief = copy(prev_traj.belief)
-#     filter!(e->e!=0.0, filtered_prev_belief)
-#     s1, s2 = findin(prev_traj.belief, filtered_prev_belief)
-#     prev_performance = s1.performance
-#     prev_given_autonomy = s1.given_autonomy
-#     prev_engagement = s1.engagement
-
-#     traj = Trajectory(updated_belief, prev_traj.alphas)
-
-#     # get index of next believed state
-#     belief_value, sp_idx = findmax(traj.belief)
-
-#     alpha_val, action_idx = findmax(traj.alphas[sp_idx, :])
-# end
 
 #=
 # Visualize D3tree setup
@@ -371,5 +330,227 @@ using D3Trees
 dtree = D3Tree(tree, text=text, init_expand=2)
 chrome_display(dtree)
 =#
+
+
+# hist_tree = Dict()
+# for seed = 1:5
+#     println(seed)
+#     hist = HistoryRecorder(max_steps=4, rng=MersenneTwister(seed), show_progress=true)
+#     hist = simulate(hist, momdp, policy, filter, init_dist)
+
+#     hist_ao = String[]
+#     hist_b = Array[]
+#     i = 1
+#     for (s, b, a, r, o, sp, bp) in eachstep(hist, "(s, b, a, r, o, sp, bp)")
+#         if a == :give_autonomy
+#             push!(hist_ao, "give")
+#             action = "give"
+#         else
+#             push!(hist_ao, "revoke")
+#             action = "revoke"
+#         end
+
+#         if o.performance
+#             if o.duration
+#                 push!(hist_ao, "good eng")
+#                 obs = "good eng"
+#             else
+#                 push!(hist_ao, "good dis")
+#                 obs = "good dis"
+#             end
+#         else
+#              if o.duration
+#                 push!(hist_ao, "bad eng")
+#                 obs = "bad eng"
+#             else
+#                 push!(hist_ao, "bad dis")
+#                 obs = "bad dis"
+#             end
+#         end
+
+#         belief = QMDP.belief_vector(policy, b)
+        
+#         if haskey(hist_tree, i)
+#             if haskey(hist_tree[i], action)
+#                 if haskey(hist_tree[i][action], obs)
+#                     # pass; already recorded
+#                 else
+#                     hist_tree[i][action][obs] = belief
+#                 end
+#             else
+#                 hist_tree[i][action] = Dict()
+#                 hist_tree[i][action][obs] = belief
+#             end
+#         else
+#             hist_tree[i] = Dict()
+#             hist_tree[i][action] = Dict()
+#             hist_tree[i][action][obs] = belief
+#         end
+        
+#         push!(hist_b, QMDP.belief_vector(policy, b))
+
+#         i += 1
+#     end
+#     # println("here")
+#     # println(hist_ao)
+#     # println(hist_b)
+#     # If not previously explored
+#     # if hist_ao in hists_aos
+#         # continue
+#     # else
+#     push!(hists_aos, hist_ao)
+
+#     hist_dict = Dict("ao" => hist_ao, "belief" => hist_b)
+#     push!(hists, hist_dict)
+#     # end
+# end
+# println(hists_aos)
+# println(hists)
+
+
+
+# Individual simulation
+# seed = 5
+# hist = HistoryRecorder(max_steps=4, rng=MersenneTwister(seed), show_progress=true)
+# hist = simulate(hist, momdp, policy, filter, init_dist)
+# for (s, b, a, r, o, sp, bp) in eachstep(hist, "(s, b, a, r, o, sp, bp)")
+#     print("####\n")
+#     println(QMDP.belief_vector(policy, b))
+#     println("s(desire, perf, given, eng): $s")
+#     println("a: $a") 
+#     println("r: $r")
+#     println("o(perf, given, dur): $o") 
+#     println("sp: $sp")
+#     println(QMDP.belief_vector(policy, bp)) 
+# end
+# for s in states(momdp)
+#     # @show s
+#     @show action(policy, ParticleCollection([s]))
+#     @printf("State(desired_autonomy=%s, performance=%s, given_autonomy=%s, engagement=%s) = Action(give_autonomy=%s)\n", s.desired_autonomy, s.performance, s.given_autonomy, s.engagement, action(policy, ParticleCollection([s])))
+# end
+
+# println(QMDP.alphas(policy))
+
+
+
+# hist = sim(momdp, max_steps=4) do obs
+#     println("Observation was $obs.")
+#     return 1
+# end
+
+# children = []
+# for (s, b, a, r, sp, op) in hist
+#     print("####\n")
+#     println("s(desired_autonomy, performance, given_autonomy, engagement): $s, action: $a, obs(performance, given_autonomy, duration): $op")
+#     # push!(children, op)
+
+#     # println(QMDP.value(policy, b))
+#     # println(QMDP.action(policy, b))
+#     println(QMDP.belief_vector(policy, b))
+#     # println(QMDP.unnormalized_util(policy, b))
+#     # println(policy.action_map)
+#     # println("s: $s, b: $(b.b), action: $a, obs: $op")
+# end
+# println("Total reward: $(discounted_reward(hist))")
+# print(states(momdp))
+
+# print(children)
+# print(typeof(children))
+# tree = D3Trees(children)
+# print(tree)
+
+
+# for (action_true, action_false) in policy.alphas
+#     println("$action_true")
+# end
+# using D3Trees
+
+# D3Tree(policy, State(true, true, true, true), init_expand=2)
+
+# POMCPSolver
+
+# solver = POMCPSolver()
+# policy = solve(solver, momdp)
+# # print(policy)
+
+# for (s, a, o) in stepthrough(momdp, policy, "sao", max_steps=10)
+#     println("State was $s,")
+#     println("action $a was taken,")
+#     println("and observation $o was received.\n")
+# end
+
+
+# Generative model (cannot use for QMDP)
+# function generate_s(m::MOMDP, s::State, a::Act, rng::AbstractRNG)
+#     # If user wants autonomy
+#     if s.desired_autonomy
+#         # Does well
+#         if s.performance
+#             # And we give them autonomy
+#             if a.give_autonomy
+#                 # Then the prob for next desired_autonomy, and the given autonomy, updated in the state
+#                 sp_desired_autonomy = rand(rng) < m.p_autonomy_when_desired_good_given ? true : false
+#                 sp_given_autonomy = true
+#             else
+#                 sp_desired_autonomy = rand(rng) < m.p_autonomy_when_desired_good_not_given ? true : false
+#                 sp_given_autonomy = false
+#             end
+#         else
+#             if a.give_autonomy
+#                 sp_desired_autonomy = rand(rng) < m.p_autonomy_when_desired_bad_given ? true : false
+#                 sp_given_autonomy = true
+#             else
+#                 sp_desired_autonomy = rand(rng) < m.p_autonomy_when_desired_bad_given ? true : false
+#                 sp_given_autonomy = false
+#             end
+#         end
+#     else
+#         if s.performance
+#             if a.give_autonomy
+#                 sp_desired_autonomy = rand(rng) < m.p_autonomy_when_not_desired_good_given ? true : false
+#                 sp_given_autonomy = true
+#             else
+#                 sp_desired_autonomy = rand(rng) < m.p_autonomy_when_not_desired_good_not_given ? true : false
+#                 sp_given_autonomy = false
+#             end
+#         else
+#             if a.give_autonomy
+#                 sp_desired_autonomy = rand(rng) < m.p_autonomy_when_not_desired_bad_given ? true : false
+#                 sp_given_autonomy = true
+#             else
+#                 sp_desired_autonomy = rand(rng) < m.p_autonomy_when_not_desired_bad_given ? true : false
+#                 sp_given_autonomy = false
+#             end
+#         end
+#     end
+#     sp = State(sp_desired_autonomy, s.performance, sp_given_autonomy, s.engagement)
+#     return sp
+# end
+
+# function generate_o(m::MOMDP, s::State, a::Act, sp::State, rng::AbstractRNG)
+#     # If the user wants autonomy in this next state
+#     if sp.desired_autonomy
+#         # And was given autonomy in this next state
+#         if sp.given_autonomy
+#             engagement = rand(rng) < m.p_engaged_when_desired_given ? true : false
+#         else
+#             engagement = rand(rng) < m.p_engaged_when_desired_not_given ? true : false
+#         end
+#     else
+#         if sp.given_autonomy
+#             engagement = rand(rng) < m.p_engaged_when_not_desired_given ? true : false
+#         else
+#             engagement = rand(rng) < m.p_engaged_when_desired_not_given ? true : false
+#         end
+#     end
+#     # Let's say performance is a general ability that's constant throughout the curriculum for now
+#     p = rand(rng) < m.p_ability ? true : false
+#     return Obs(engagement, p, sp.given_autonomy)
+# end
+
+
+
+
+
 
 
