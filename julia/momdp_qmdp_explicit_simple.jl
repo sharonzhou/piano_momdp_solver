@@ -118,9 +118,7 @@ function observation(m::MOMDP, s::State)
 end
 
 # Transition function P(s' | s, a)
-function transition(m::MOMDP, s::State, a::Symbol)
-    rng = MersenneTwister(1)
-
+function transition(m::MOMDP, s::State, a::Symbol, rng::AbstractRNG=MersenneTwister(1))
     sp_desired_autonomy = true
     sp_engagement = true
     sp_performance = rand(rng) < m.p_ability ? true : false
@@ -231,46 +229,69 @@ policy = solve(solver, momdp, verbose=true)
 filter = SIRParticleFilter(momdp, 10000)
 
 init_dist = initial_state_distribution(momdp)
+init_belief = initialize_belief(filter, init_dist)
 
-# println(policy.alphas)
-#[13.9499 14.4372; 14.9499 15.4372; 13.9499 14.4376; 14.9503 15.4376; 14.2392 14.5245; 15.2392 15.5245; 14.2392 14.5249; 15.2393 15.5249; 14.0567 13.9162; 15.0567 14.9164; 14.0567 13.9165; 15.0567 14.9165; 14.2762 13.8296; 15.2762 14.8299; 14.2762 13.83; 15.2762 14.83]
+# function unroll_sparse_cat(d::POMDPToolbox.SparseCat{Array{State,1}})
+#     state_names = d.vals
+#     state_probs = d.probs
 
-all_actions = [:give_autonomy, :revoke_autonomy]
-
-state_indices = findin(all_states, init_state_dist.vals)
-
-_, next_action_index_1 = findmax(policy.alphas[state_indices[1], :])
-next_belief_1 = transition(momdp, all_states[state_indices[1]], all_actions[next_action_index_1])
-println(next_belief_1)
-
-_, next_action_index_2 = findmax(policy.alphas[state_indices[2], :])
-next_belief_2 = transition(momdp, all_states[state_indices[2]], all_actions[next_action_index_2])
-println(next_belief_2)
-# struct Trajectory
-#     # Last belief
-#     belief::Array{Float64}
-
-#     alphas::Array{Float64}
+#     dp = [0.0 for i = 1:num_states]
+#     for (ni, n) in enumerate(state_names)
+#         si = state_index(n)
+#         dp[si] = state_probs[ni]
+#     end
+#     return dp
 # end
 
-# Trajectory() = Trajectory(init_state_dist, policy.alphas)
+function input(ask::String="performance")::Bool
+    if ask == "performance"
+        prompt = "performed well? (y/n) "
+    else
+        prompt = "engaged? (y/n) "
+    end
+    print(prompt)
+    user_input = chomp(readline())
+    if user_input == "n"
+        return false
+    else
+        return true
+    end
+end
 
-# function generate_a(o::Obs, prev_traj::Trajectory)
-#     # take new observation and update belief 
-#     filtered_prev_belief = copy(prev_traj.belief)
-#     filter!(e->e!=0.0, filtered_prev_belief)
-#     s1, s2 = findin(prev_traj.belief, filtered_prev_belief)
-#     prev_performance = s1.performance
-#     prev_given_autonomy = s1.given_autonomy
-#     prev_engagement = s1.engagement
+function unroll_particles(particles::ParticleFilters.ParticleCollection{State})
+    d = [0.0 for i = 1:num_states]
+    d = []
+    for i = 1:num_states
+        push!(d, pdf(particles, all_states[i]))
+    end
+    return d
+end
 
-#     traj = Trajectory(updated_belief, prev_traj.alphas)
+function generate_next_action(particle_belief::Any=init_belief, iteration::Int64=1)
+    println("Step: ", iteration)
+    belief = unroll_particles(particle_belief)
+    println("Belief: ", belief)
+    _, action_idx = findmax(belief .* policy.alphas)
 
-#     # get index of next believed state
-#     belief_value, sp_idx = findmax(traj.belief)
+    if action_idx <= size(belief)[1]
+        action = :give_autonomy
+        action_val = true
+    else
+        action = :revoke_autonomy
+        action_val = false
+    end
+    println("Next action is: ", action)
 
-#     alpha_val, action_idx = findmax(traj.alphas[sp_idx, :])
-# end
+    # Input user's performance and engagement
+    inputed_performance = input("performance")
+    inputed_engagement = input("engagement")
+
+    o = Obs(inputed_performance, action_val, inputed_engagement)
+    next_belief = update(filter, particle_belief, action, o)
+    return generate_next_action(next_belief, iteration + 1)
+end
+
+generate_next_action()
 
 #=
 # Visualize D3tree setup
@@ -281,7 +302,7 @@ for node in tree
     # depth d requires # nodes = 2*(4^0+4^1+4^2+4^3+...4^d) (mult by 2 b/c it's num expansion nodes + num extra action nodes)
     # d=30 is 3.0744573e+18 (copy paste below for chrome calculator evaluation)
     # 2*(4^0+4^1+4^2+4^4+4^5+4^6+4^7+4^8+4^9+4^10+4^11+4^12+4^13+4^14+4^15+4^16+4^17+4^18+4^19+4^20+4^21+4^22+4^23+4^24+4^25+4^26+4^27+4^28+4^29+4^30)=
-    if node_idx < 3.0744573e+18 
+    if node_idx < 2796074
         if size(node, 1) == 1
             # add a 4 child next
             push!(tree, [node_idx, node_idx+1, node_idx+2, node_idx+3])
@@ -312,8 +333,8 @@ for node in tree
     end
 end
 
-for seed = 1:1000
-    hist = HistoryRecorder(max_steps=30, rng=MersenneTwister(seed), show_progress=true)
+for seed = 1:10
+    hist = HistoryRecorder(max_steps=10, rng=MersenneTwister(seed), show_progress=true)
     hist = simulate(hist, momdp, policy, filter, init_dist)
     tree_node_idx = 1
     for (a, o, bp) in eachstep(hist, "(a, o, bp)")
